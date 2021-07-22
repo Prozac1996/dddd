@@ -22,6 +22,7 @@ import static org.jackhuang.hmcl.util.i18n.I18n.i18n;
 public enum LoadingState {
     DEPENDENCIES("launch.state.dependencies"),
     MODS("launch.state.modpack"),
+    MOD_UPDATE("launch.state.mod_update"),
     LOGGING_IN("launch.state.logging_in"),
     LAUNCHING("launch.state.waiting_launching"),
     DONE("launch.state.done");

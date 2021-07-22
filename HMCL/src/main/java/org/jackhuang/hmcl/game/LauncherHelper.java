@@ -42,6 +42,7 @@ import org.jackhuang.hmcl.mod.mcbbs.McbbsModpackLocalInstallTask;
 import org.jackhuang.hmcl.mod.server.ServerModpackCompletionTask;
 import org.jackhuang.hmcl.mod.server.ServerModpackLocalInstallTask;
 import org.jackhuang.hmcl.setting.LauncherVisibility;
+import org.jackhuang.hmcl.upgrade.oldfriends.ModUpdateHelper;
 import org.jackhuang.hmcl.setting.Profile;
 import org.jackhuang.hmcl.setting.VersionSetting;
 import org.jackhuang.hmcl.task.*;
@@ -85,6 +86,7 @@ public final class LauncherHelper {
     private final VersionSetting setting;
     private LauncherVisibility launcherVisibility;
     private boolean showLogs;
+    private ModUpdateHelper mModUpdateHelper;
 
     public LauncherHelper(Profile profile, Account account, String selectedVersion) {
         this.profile = Objects.requireNonNull(profile);
@@ -94,6 +96,7 @@ public final class LauncherHelper {
         this.launcherVisibility = setting.getLauncherVisibility();
         this.showLogs = setting.isShowLogs();
         this.launchingStepsPane.setTitle(i18n("version.launch"));
+        mModUpdateHelper = new ModUpdateHelper();
     }
 
     private final TaskExecutorDialogPane launchingStepsPane = new TaskExecutorDialogPane(it -> {});
@@ -132,7 +135,7 @@ public final class LauncherHelper {
         Version version = MaintainTask.maintain(repository, repository.getResolvedVersion(selectedVersion));
         Optional<String> gameVersion = GameVersion.minecraftVersion(repository.getVersionJar(version));
         boolean integrityCheck = repository.unmarkVersionLaunchedAbnormally(selectedVersion);
-        CountDownLatch launchingLatch = new CountDownLatch(1);
+        CountDownLatch launchingLatch = new CountDownLatch(2);
 
         TaskExecutor executor = dependencyManager.checkPatchCompletionAsync(repository.getVersion(selectedVersion), integrityCheck)
                 .thenComposeAsync(Task.allOf(
@@ -159,6 +162,9 @@ public final class LauncherHelper {
                 .thenComposeAsync(() -> {
                     return gameVersion.map(s -> new GameVerificationFixTask(dependencyManager, s, version)).orElse(null);
                 })
+                .thenComposeAsync(Task.supplyAsync(() -> {
+                    return mModUpdateHelper.updateClient(repository.getModManager(version.getVersion()), launchingLatch);
+                }).withStage("launch.state.mod_update"))
                 .thenComposeAsync(Task.supplyAsync(() -> {
                     try {
                         return account.logIn();
@@ -211,6 +217,7 @@ public final class LauncherHelper {
                 .withStagesHint(Lang.immutableListOf(
                         "launch.state.dependencies",
                         "launch.state.logging_in",
+                        "launch.state.mod_update",
                         "launch.state.waiting_launching"))
                 .executor();
         launchingStepsPane.setExecutor(executor, false);
